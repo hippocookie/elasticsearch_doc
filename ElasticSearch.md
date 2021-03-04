@@ -205,7 +205,7 @@ GET / _mget
 *shard = hash(routing) % number_of_primary_shards*
 
 **执行create，index，delete操作**
-请求至Master Node -> Primary Shard Node -> Replica Node
+> 请求至Master Node -> Primary Shard Node -> Replica Node
 当主分片和副本执行成功后，返回成功
 
 可配置策略修改这一执行方式
@@ -222,5 +222,14 @@ async: Primary Shard成功后即刻返回，仍会发送请求至replica，但�
 当可用shard数量不足时，ES将会等待，默认为1min，可进行配置， e.g. 100(ms), 30s
 
 ### 查询文档
+文档可以从Primary或Replica shard中获取
+> 请求至Master Node -> 路由请求至对应Primary/Replica Shard
 
+在索引文档过程中，可能存在Primary/Replica节点暂时不一致，Primary存在文档但Replica还不存在，当索引请求成功返回后，Primary/Replica节点恢复一致。
 
+### 更新部分文档
+> 请求至Master Node -> 路由请求至对应Primary Shard -> 尝试更新对应文档，如存在冲突重试retry_on_conflict次 -> 发送至Replica Shard节点更新
+> Primary Shard发送更新时，发送整个文档而非只有更新字段，发送过程为异步，可能存在乱序情况导致Replica节点文档破坏
+
+### 多文档操作
+mget与bulk API与单个请求操作流程类似，不同的是其根据shard对请求进行拆分，发送请求至对应节点处理，当接收到各节点返回后，合并为一个返回结果
