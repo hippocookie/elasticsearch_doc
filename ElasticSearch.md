@@ -233,3 +233,112 @@ async: Primary Shard成功后即刻返回，仍会发送请求至replica，但�
 
 ### 多文档操作
 mget与bulk API与单个请求操作流程类似，不同的是其根据shard对请求进行拆分，发送请求至对应节点处理，当接收到各节点返回后，合并为一个返回结果
+
+## 搜索
+### 不带条件搜索
+- 返回体中默认按相关评分_score排序，max_score为搜索结果中最相关数据的得分
+- took: 表示查询耗时
+- shards: 表示查询对应分片是否有失败，如存在失败，导致对应分片数据查询不到
+- timed_out: 查询是否超时，默认情况下不超时，如响应实现比完整结果更重要，可在查询时进行设定(GET /_search?timeout=10ms)
+
+```json
+GET /_search
+{
+	"hits": {
+		"total": 14,
+		"hits": [{
+				"_index": "us",
+				"_type": "tweet",
+				"_id": "7",
+				"_score": 1,
+				"_source": {
+					"date": "2014-09-17",
+					"name": "John Smith",
+					"tweet": "The Query DSL is really powerful and flexible",
+					"user_id": 2
+				}
+			},
+			...9 RESULTS REMOVED...
+		],
+		"max_score": 1
+	},
+	"took": 4,
+	"_shards": {
+		"failed": 0,
+		"successful": 10,
+		"total": 10
+	},
+	"timed_out": false
+}
+```
+
+### 多索引、类型查询
+查询中没有带有_index, _type条件，ES回搜索全部索引和类型，并行发送请求至Primary/Replica Shards，合并结果后返回top 10
+
+查询时可指定索引
+```
+/_search
+Search all types in all indices
+
+/gb/_search
+Search all types in the gb index
+
+/gb,us/_search
+Search all types in the gb and us indices
+
+/g*,u*/_search
+Search all types in any indices beginning with g or beginning with u
+
+/gb/user/_search
+Search type user in the gb index
+
+/gb,us/user,tweet/_search
+Search types user and tweet in the gb and us indices
+
+/_all/user,tweet/_search
+Search types user and tweet in all indices
+```
+### 分页
+- size: Indicates the number of results that should be returned, defaults to 10
+- from: Indicates the number of initial results that should be skipped, defaults to 0
+
+如分页靠后，需查询各分片中数据，然后汇总排序后进行返回，确保顺序正确。例如，查询1至10条数据，获取每个分片top 10，返回至接受请求的节点，将50条数据排序后返回top 10。在分布式系统中分页查询代价随翻页成倍增加。对于任何查询，搜索引擎返回结果最好不超过1000。
+
+### Search Lite
+- query-string: 参数通过查询请求字符串传入
+> GET /_all/tweet/_search?q=tweet:elasticsearch
+> 
+> +name:john +tweet:mary
+> +:必须满足，-:必须不满足
+> GET /_search?q=%2Bname%3Ajohn+%2Btweet%3Amary
+
+- request-body: 参数通过查询Json结构体传入，使用查询DSL
+
+### _all字段
+查询包含mary字段
+> GET /_search?q=mary
+
+文档内容如下:
+```json
+{
+    "tweet": "However did I manage before Elasticsearch?",
+    "date": "2014-09-14",
+    "name": "Mary Jones",
+    "user_id": 1
+}
+```
+如另添加一个_all字段，除非特别声明搜索字段，否则会使用这个_all字段进行搜索
+```json
+{
+    "_all": "However did I manage before Elasticsearch? 2014-09-14 Mary Jones 1"
+}
+```
+
+#### 更复杂的查询
+- The name field contains mary or john
+- The date is greater than 2014-09-10
+- The _all field contains either of the words aggregations or geo
+> +name:(mary john) +date:>2014-09-10 +(aggregations geo)
+>
+> ?q=%2Bname%3A(mary+john)+%2Bdate%3A%3E2014-09-10+%2B(aggregations+geo)
+
