@@ -342,3 +342,106 @@ Search types user and tweet in all indices
 >
 > ?q=%2Bname%3A(mary+john)+%2Bdate%3A%3E2014-09-10+%2B(aggregations+geo)
 
+## Mapping和Analysis
+### 精确值和全文匹配
+- Exact values: 精确值匹配需完全一致对应，Foo与foo，2014与2014-09-15被认为是不同的值
+- Full text: 一般是语言相关
+
+### 倒排索引
+- inverted index: 倒排索引包含单词与对应出现的多个文档映射
+例如有如下两个文档
+> 1. The quick brown fox jumped over the lazy dog
+> 2. Quick brown foxes leap over lazy dogs in summer
+
+|Term| Doc_1 |Doc_2|
+|----|----|----|
+|Quick | | X|
+|The | X |
+|brown | X | X|
+|dog | X ||
+|dogs | | X|
+|fox | X ||
+|foxes | | X|
+|in | | X|
+|jumped | X ||
+|lazy | X | X|
+|leap | | X|
+|over | X | X|
+|quick | X ||
+|summer | | X|
+|the | X ||
+|----|----|----|
+
+但该索引存在如下问题
+- Quick and quick appear as separate terms, while the user probably thinks of
+them as the same word.
+- fox and foxes are pretty similar, as are dog and dogs; They share the same root
+word.
+- jumped and leap, while not from the same root word, are similar in meaning.
+They are synonyms.
+
+可进行归一化normalize处理，查询请求参数和索引字段都需进行归一化处理
+- Quick can be lowercased to become quick.
+- foxes can be stemmed--reduced to its root form—to become fox. Similarly, dogs
+could be stemmed to dog.
+- jumped and leap are synonyms and can be indexed as just the single term jump.
+
+### Analysis和Analyzers
+分析过程进行如下操作:
+- 将一段文本拆分为适合进行倒排索引的单个短语
+- 然后将短语进行归一化，变为更易搜索的字段
+
+这个过程通过分词器来完成，分词器中一般包含三个过程
+- Character filters: 首先将文本中特殊字符进行除去和转换，如去除HTML标签，或将&转换为and
+- Tokenizer: 将文本拆分为单个短语，简单的分词器一般使用空格或标点符号进行拆分
+- Token filters: 拆分后的短语进行归一化，如转为小写、去除a，and，the，或转换同义词
+
+### 内置分词器
+- Standard analyzer: 这个是ES默认使用的分词器，其根据词边界进行划分，去除标点符号，转换为小写
+- Simple analyzer: 根据非单词字符进行分词，然后转换为小写
+- Whitespace analyzer: 根据空格进行分词，不会进行归一化转换为小写
+- Language analyzers: 不用语言有对应分词器
+
+#### 何时使用分词器
+当索引一个文档时，其对应文本字段通过分词器分析后建立倒排索引，当查询时，查询参数同样经过分词器后再进行查询，确保查询参数与索引字段一致
+
+- Full text: 当查询full-text字段时，查询参数会通过相同分词器
+- Exact value: 当使用精确匹配时，查询参数不会经过分词器
+因此，当索引2014-09-15字段值时，date类型为精确匹配2014-09-15，_all字段进行分词后变为2014，09，15
+
+### 测试分词器
+可以通过调用analyze API来查看文档分词和存储过程
+```json
+GET /_analyze?analyzer=standard
+Text to analyze
+{
+	"tokens": [{
+			"token": "text",
+			"start_offset": 0,
+			"end_offset": 4,
+			"type": "<ALPHANUM>",
+			"position": 1
+		},
+		{
+			"token": "to",
+			"start_offset": 5,
+			"end_offset": 7,
+			"type": "<ALPHANUM>",
+			"position": 2
+		},
+		{
+			"token": "analyze",
+			"start_offset": 8,
+			"end_offset": 15,
+			"type": "<ALPHANUM>",
+			"position": 3
+		}
+	]
+}
+```
+- token: 表示真实会存储在索引中的字段
+- position: 表示该字段在文本中出现的位置
+- start_offset, end_offset: 该字段在文本中字符位置
+- ALPHANUM: 不用分词器含义不同，可忽略，唯一用处为keep_types token filter
+
+
