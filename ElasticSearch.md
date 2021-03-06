@@ -444,4 +444,67 @@ Text to analyze
 - start_offset, end_offset: 该字段在文本中字符位置
 - ALPHANUM: 不用分词器含义不同，可忽略，唯一用处为keep_types token filter
 
+#### 指定分词器
+当ES检测到文档某个字段为string类型时，自动配置其为全文检索string，并使用standard analyzer对齐进行分词。
+
+当不需要使用该默认特性时，可以使用mapping指定对应字段类型和分词器。
+
+### Mapping
+index中每个type均可设定自己的Mapping(Schema Definition)，Mapping定义文档字段的类型，以及ES如何处理对应字段。
+
+#### 字段类型
+- 字符串: string
+- 整数: byte, short, integer, long
+- 浮点数: float, double
+- 布尔值: boolean
+- 日期: date
+
+当新添加一个未定义的字段时，ES会使用dynamic mapping尝试猜测对应字段类型，规则如下:
+> JSON type -> Field type
+> Boolean: true or false -> boolean
+> Whole number: 123 -> long
+> Floating point: 123.45 -> double
+> String, valid date: 2014-09-15 -> date
+> String: foo bar -> string
+>
+> "123"会被当做字符串，而非long类型，如已经定义Mapping为long，ES会先尝试转换该字段，如果失败抛出异常
+
+#### 查看已定义Mapping
+查看索引下多个类型Mapping，可使用/_mapping后缀
+```json 
+GET /gb/_mapping/tweet
+{
+	"gb": {
+		"mappings": {
+			"tweet": {
+				"properties": {
+					"date": {
+						"type": "date",
+						"format": "dateOptionalTime"
+					},
+					"name": {
+						"type": "string"
+					},
+					"tweet": {
+						"type": "string"
+					},
+					"user_id": {
+						"type": "long"
+					}
+				}
+			}
+		}
+	}
+}
+```
+
+#### 配置字段Mapping
+定义非string类型字段时，一般只需字段类型type
+```json
+{
+	"number_of_clicks": {
+		"type": "integer"
+	}
+}
+```
 
