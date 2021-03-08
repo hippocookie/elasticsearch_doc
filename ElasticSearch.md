@@ -499,6 +499,7 @@ GET /gb/_mapping/tweet
 ```
 
 #### 配置字段Mapping
+**not string***
 定义非string类型字段时，一般只需字段类型type
 ```json
 {
@@ -507,7 +508,149 @@ GET /gb/_mapping/tweet
 	}
 }
 ```
+可设置index类型
 
+**string**
+string类型在建立索引前会使用分词器进行分析，同样查询条件在进行检索前，也需经过分词器
 
+string类型两个最重要的配置是index和analyzer
+*index*
+- analyzed(default): 对字符串先进行分析再索引
+- not_analyzed: 对字符串添加索引，可以进行搜索，但不进行分词，精确匹配
+- no: 不索引该字段，无法进行搜索
 
+```json
+{
+    "tag": {
+        "type": "string",
+        "index": "not_analyzed"
+    }
+}
+```
+
+#### analyzer
+默认使用standard分词器，可以声明使用其他内置分词器(whitespace, simple, english)
+```json
+{
+    "tweet": {
+        "type": "string",
+        "analyzer": "english"
+    }
+}
+```
+
+#### 更新Mapping
+可以使用/_mapping后缀增加新的Mapping字段，但无法修改已存在的Mapping类型
+
+### 复杂核心类型
+#### 数组
+属性可包含多个数值，数组没有要求对应的Mapping类型，可包含0至多个数值，与全文本类型一样，可以进行分词
+- 数组中的数值必须是相同的类型，当创建新的数组字段时，ES会使用数组中的第一个元素类型决定这个字段的类型
+- 在查询数组字段时，数组中元素返回顺序与索引字段时顺序一致
+- 在搜索时，数组中的元素是无序的，无法使用first/last方式获取元素
+```json
+{ "tag": [ "search", "nosql" ]}
+```
+
+#### 空值
+Lucene中无法设置null值，因此null值都会被认为是空来处理
+```json
+{
+    "null_value": null,
+    "empty_array": [],
+    "array_with_null_value": [ null ]
+}
+```
+
+#### 内部对象
+文档中可包含Inner Object
+```json
+{
+	"tweet": "Elasticsearch is very flexible",
+	"user": {
+		"id": "@johnsmith",
+		"gender": "male",
+		"age": 26,
+		"name": {
+			"full": "John Smith",
+			"first": "John",
+			"last": "Smith"
+		}
+	}
+}
+```
+ES会自动检测内部对象Mapping类型
+```json
+{
+	"gb": {
+		"tweet": {
+			"properties": {
+				"tweet": {
+					"type": "string"
+				},
+				"user": {
+					"type": "object",
+					"properties": {
+						"id": {
+							"type": "string"
+						},
+						"gender": {
+							"type": "string"
+						},
+						"age": {
+							"type": "long"
+						},
+						"name": {
+							"type": "object",
+							"properties": {
+								"full": {
+									"type": "string"
+								},
+								"first": {
+									"type": "string"
+								},
+								"last": {
+									"type": "string"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+```
+
+#### 内部对象是如何被索引的
+Lucene不支持Inner Object类型，在索引时会进行转换
+```json
+{
+    "tweet": [elasticsearch, flexible, very],
+    "user.id": [@johnsmith],
+    "user.gender": [male],
+    "user.age": [26],
+    "user.name.full": [john, smith],
+    "user.name.first": [john],
+    "user.name.last": [smith]
+}
+```
+#### 数组内部对象
+当属性值为数组对象时
+```json
+{
+    "followers": [
+        { "age": 35, "name": "Mary White"},
+        { "age": 26, "name": "Alex Jones"},
+        { "age": 19, "name": "Lisa Smith"}
+    ]
+}
+```
+文档会扁平化转换为以下格式
+```json
+{
+	"followers.age": [19, 26, 35],
+	"followers.name": [alex, jones, lisa, smith, mary, white]
+}
+```
 
