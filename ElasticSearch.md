@@ -654,3 +654,10 @@ Lucene不支持Inner Object类型，在索引时会进行转换
 }
 ```
 
+## 全文检索(Full-Body Search)
+### 空搜索
+```json
+GET /_search
+{}
+```
+
