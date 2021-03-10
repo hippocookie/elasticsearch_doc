@@ -656,8 +656,302 @@ Lucene不支持Inner Object类型，在索引时会进行转换
 
 ## 全文检索(Full-Body Search)
 ### 空搜索
+ES认为GET更好的描述了所进行的操作，因此使用GET加请求体方式，但不是所有HTTP请求都支持GET请求体，ES也提供了POST对应的查询方式
 ```json
 GET /_search
 {}
+
+GET /_search
+{
+	"from": 30,
+	"size": 10
+}
+
+POST /_search
+{
+	"from": 30,
+	"size": 10
+}
 ```
+
+### Query DSL
+```json
+GET /_search
+{
+	"query": {
+		"match_all": {}
+	}
+}
+
+GET /_search
+{
+	"query": {
+		"match": {
+			"tweet": "elasticsearch"
+		}
+	}
+}
+```
+
+#### 组合多个查询语句
+查询语句有以下类型:
+- Leaf clauses(match): 用于比较字段
+- Compound clauses: 用于组合其他查询字段，与bool从句衔接的只能是must, must_not, should
+```json
+{
+	"bool": {
+		"must": { "match": { "tweet": "elasticsearch" }},
+		"must_not": { "match": { "name": "mary" }},
+		"should": { "match": { "tweet": "full text" }}
+	}
+}
+```
+Compound clauses还可进行嵌套，复合成更复杂的查询条件
+```json
+{
+	"bool": {
+		"must": { "match": { "email": "business opportunity" }},
+		"should": [
+			{ "match": { "starred": true }},
+			{ "bool": {
+				"must": { "folder": "inbox" }},
+				"must_not": { "spam": true }}
+		],
+		"minimum_should_match": 1
+	}
+}
+```
+
+### 查询与过滤
+ES DSL语句分为两种，query DSL和filter DSL，这两种本质相似，但用途不同
+- filter: yes|no 问题查询，以及某个字段是否包含对应精确值
+- query: 用于查询文档匹配查询条件程度
+
+#### 查询性能
+使用filter查询结果可以将每个文档转换为1bit大小的缓存，在下次查询时进行复用，而query不仅需查找符合请求条件的文档，还需进行相关性计算，比filter更消耗资源，且不能缓存
+
+缓存的filter性能高于query，其目的是减少query查询的文档数
+
+#### 何时使用query/filter
+一个基本的原则，使用query做全文检索查询可能影响文档相关性评分的字段，其他则使用filter
+
+### 常用query/filter
+#### term Filter
+term用于查询精确匹配值，字段为numbers，dates，booleans或者设置为not_analyzed的精确字符串
+```json
+{ "term": { "age": 26 }}
+{ "term": { "date": "2014-09-01" }}
+{ "term": { "public": true }}
+{ "term": { "tag": "full_text" }}
+```
+#### terms Filter
+terms与term相同，可以声明多个字段用于匹配，如果文档包含任意查询的值即为匹配
+```json
+{ "terms": { "tag": [ "search", "full_text", "nosql" ] }}
+```
+
+#### range Filter
+用于查询number或date在特定区间的文档, gt/gte/lt/lte
+```json
+{
+	"range": {
+		"age": {
+			"gte": 20,
+			"lt": 30
+		}
+	}
+}
+```
+
+#### exists and missing Filters
+与SQL中IS_NULL(missing)，NOT IS_NULL(exists)相似，用于查询字段中是否包含或不包含特定值
+```json
+{
+	"exists": {
+		"field": "title"
+	}
+}
+```
+
+#### bool Filter
+bool为逻辑操作符，用于合并多个bool逻辑，must/must_not/should
+```json
+{
+	"bool": {
+		"must": { "term": { "folder": "inbox" }},
+		"must_not": { "term": { "tag": "spam" }},
+		"should": [
+			{ "term": { "starred": true }},
+			{ "term": { "unread": true }}
+		]
+	}
+}
+```
+
+#### match_all Query
+经常用于与filter结合查询，用于查询所有数据，所有文档的相关性都认为是相同的_score=1
+```json
+{ "match_all": {}}
+```
+
+#### match Query
+match是进行全文检索的标准查询，基本查询所有字段都可以使用，当使用match时，查询条件会使用对应的分词器进行解析后再执行搜索，当用于查询精确匹配时，则不会使用分词器
+```json
+{ "match": { "tweet": "About Search" }}
+{ "match": { "age": 26 }}
+{ "match": { "date": "2014-09-01" }}
+{ "match": { "public": true }}
+{ "match": { "tag": "full_text" }}
+```
+
+#### multi_match Query
+multi_match是对多个字段使用match查询
+```json
+{
+	"multi_match": {
+		"query": "full text search",
+		"fields": [ "title", "body" ]
+	}
+}
+```
+
+#### bool Query
+像bool Filter一样，组合多个bool Query，不用的是filter验证yes|no，query则验证各从句相关性得分_score，must/must_not/should
+```json
+{
+	"bool": {
+		"must": { "match": { "title": "how to make millions" }},
+		"must_not": { "match": { "tag": "spam" }},
+		"should": [
+			{ "match": { "tag": "starred" }},
+			{ "range": { "date": { "gte": "2014-01-01" }}}
+		]
+	}
+}
+```
+
+### Query与Filter组合查询
+#### Filtering a Query
+```json
+GET /_search
+{
+	"query": {
+		"filtered": {
+			"query": { "match": { "email": "business opportunity" }},
+			"filter": { "term": { "folder": "inbox" }}
+		}
+	}
+}
+```
+
+#### Just a Filter
+```json
+GET /_search
+{
+	"query": {
+		"filtered": {
+			"filter": { "term": { "folder": "inbox" }}
+		}
+	}
+}
+
+GET /_search
+{
+	"query": {
+		"filtered": {
+			"query": { "match_all": {}},
+			"filter": { "term": { "folder": "inbox" }}
+		}
+	}
+}
+```
+
+#### A Query as a Filter
+当在使用filter语句时，也可以嵌套query从句进行查询
+```json
+{
+	"query": {
+		"filtered": {
+			"filter": {
+				"bool": {
+					"must": { "term": { "folder": "inbox" }},
+					"must_not": {
+						"query": {
+							"match": { "email": "urgent business proposal" }
+						}
+					}
+				}
+			}
+		}
+	}
+}
+```
+### 校验query
+可以使用validate-query API对查询条件进行校验
+```json
+GET /gb/tweet/_validate/query
+{
+	"query": {
+		"tweet" : {
+			"match" : "really powerful"
+		}
+	}
+}
+
+response
+{
+	"valid" : false,
+	"_shards" : {
+		"total" : 1,
+		"successful" : 1,
+		"failed" : 0
+	}
+}
+```
+可以使用explain查看query校验失败的原因
+```json
+GET /gb/tweet/_validate/query?explain
+{
+	"query": {
+		"tweet" : {
+			"match" : "really powerful"
+		}
+	}
+}
+
+response
+{
+	"valid" : false,
+	"_shards" : { ... },
+	"explanations" : [ {
+	"index" : "gb",
+	"valid" : false,
+	"error" : "org.elasticsearch.index.query.QueryParsingException:
+	[gb] No query registered for [tweet]"
+	} ]
+}
+```
+#### 理解query
+当查询条件合法时，explain会返回以索引为粒度查询条件对应的解析结果
+```json
+{
+	"valid" : true,
+	"_shards" : { ... },
+	"explanations" : [ {
+		"index" : "us",
+		"valid" : true,
+		"explanation" : "tweet:really tweet:powerful"
+	}, {
+		"index" : "gb",
+		"valid" : true,
+		"explanation" : "tweet:realli tweet:power"
+	} ]
+}
+```
+
+
+
+
+
+
 
