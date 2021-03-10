@@ -949,6 +949,83 @@ response
 }
 ```
 
+## 排序和相关性
+### 排序
+查询结果中_score字段表示结果与查询条件的相关性，为浮点数类型，默认查询排序结果为按_score降序排序
+
+当使用filter和match_all query时，所有文档相关性_score=1
+
+### 字段排序
+```json
+GET /_search
+{
+	"query" : {
+	"filtered" : {
+			"filter" : { "term" : { "user_id" : 1 }}
+		}
+	},
+	"sort": { "date": { "order": "desc" }}
+}
+
+response
+"hits" : {
+	"total" : 6,
+	"max_score" : null,
+	"hits" : [ {
+		"_index" : "us",
+		"_type" : "tweet",
+		"_id" : "14",
+		"_score" : null,
+		"_source" : {
+		"date": "2014-09-24",
+		...
+	},
+	"sort" : [ 1411516800000 ]
+	},
+	...
+}
+```
+返回体中每个文档包含一个新字段*sort*，值为用于排序的字段值，并且_score和max_score字段值均为null，多数情况下这个两个值仅用来排序，而计算这两个值比较耗资源，因此如果不是按照相关性来排序的话，就不需计算这个值
+
+如果仍想计算_score值得话，可传递参数*track_scores=true*
+
+使用简写的话，默认使用升序排序，_score使用降序排序
+```json
+"sort": "number_of_children"
+```
+
+#### 多层排序
+多个排序条件时，会先按第一个字段排序，然后第二个
+```json
+GET /_search
+{
+	"query" : {
+		"filtered" : {
+			"query": { "match": { "tweet": "manage text search" }},
+			"filter" : { "term" : { "user_id" : 2 }}
+		}
+	},
+	"sort": [
+		{ "date": { "order": "desc" }},
+		{ "_score": { "order": "desc" }}
+	]
+}
+```
+
+#### 数组字段排序
+当字段为数组时，无法直接进行排序，需先将数组转换为可排序的值，可使用*mode:min/max/avg/sum*等排序模式
+```json
+"sort": {
+	"dates": {
+		"order": "asc",
+		"mode": "min"
+	}
+}
+```
+
+
+
+
 
 
 
