@@ -1023,9 +1023,204 @@ GET /_search
 }
 ```
 
+## 监控
+### Cluster Health
+```json
+GET _cluster/health
+{
+	"cluster_name": "elasticsearch_zach",
+	"status": "green",
+	"timed_out": false,
+	"number_of_nodes": 1,
+	"number_of_data_nodes": 1,
+	"active_primary_shards": 10,
+	"active_shards": 10,
+	"relocating_shards": 0,
+	"initializing_shards": 0,
+	"unassigned_shards": 0
+}
+```
+*status*
+- green: 所有Primary/Replica Shards都已完成分配，集群100%可用
+- yellow: 所有Primary Shards已完成分配，至少有一个Replica Shard没有分配，此时没有数据丢失，查询的结果集是完整的，集群可用性有一些损失，可认为是一种警示
+- red: 至少有一个Primary Shards丢失，此时查询有数据缺失
 
+*number_of_nodes/number_of_data_nodes*
+节点数
 
+*active_primary_shards*
+集群中全部可用Primary Shards，包含所有索引
 
+*active_shards*
+集群中全部shards，包含Primary/Replica
+
+*relocating_shards*
+迁移中的shards数量，一般为0，当节点分布不均时，或有新节点加入、节点不可用时产生
+
+*initializing_shards*
+新创建的shards，或节点重启时，仅是中间过程
+
+*unassigned_shards*
+常见为unassigned replicas
+
+### 查看故障索引
+node总数为10，如下显示缺少两个节点，以及20个shards未分配
+```json
+{
+	"cluster_name": "elasticsearch_zach",
+	"status": "red",
+	"timed_out": false,
+	"number_of_nodes": 8,
+	"number_of_data_nodes": 8,
+	"active_primary_shards": 90,
+	"active_shards": 180,
+	"relocating_shards": 0,
+	"initializing_shards": 0,
+	"unassigned_shards": 20
+}
+```
+进一步查看索引信息
+```json
+GET _cluster/health?level=indices
+{
+	"cluster_name": "elasticsearch_zach",
+	"status": "red",
+	"timed_out": false,
+	"number_of_nodes": 8,
+	"number_of_data_nodes": 8,
+	"active_primary_shards": 90,
+	"active_shards": 180,
+	"relocating_shards": 0,
+	"initializing_shards": 0,
+	"unassigned_shards": 20
+	"indices": {
+		"v1": {
+			"status": "green",
+			"number_of_shards": 10,
+			"number_of_replicas": 1,
+			"active_primary_shards": 10,
+			"active_shards": 20,
+			"relocating_shards": 0,
+			"initializing_shards": 0,
+			"unassigned_shards": 0
+		},
+		"v2": {
+			"status": "red",
+			"number_of_shards": 10,
+			"number_of_replicas": 1,
+			"active_primary_shards": 0,
+			"active_shards": 0,
+			"relocating_shards": 0,
+			"initializing_shards": 0,
+			"unassigned_shards": 20
+		},
+		"v3": {
+			"status": "green",
+			"number_of_shards": 10,
+			"number_of_replicas": 1,
+			"active_primary_shards": 10,
+			"active_shards": 20,
+			"relocating_shards": 0,
+			"initializing_shards": 0,
+			"unassigned_shards": 0
+		},
+	....
+	}
+}
+```
+可用如下请求查看具体分片信息，但不是很好理解，知道具体问题索引后，可以使用后续其他方式排查
+> GET _cluster/health?level=shards
+
+#### 等待状态变化
+cluster-health API可以进行调试或执行脚本
+> 等待集群状态为greem
+> GET _cluster/health?wait_for_status=green
+例如创建索引后，立即添加文档，此时可调用以上接口阻塞等待，待索引创建完毕后继续执行
+
+#### 监控单个节点
+可用于查看节点信息是否存在错误
+```json
+GET _nodes/stats
+{
+	"cluster_name": "elasticsearch_zach",
+	"nodes": {
+	"UNr6ZMf5Qk-YCPA_L18BOQ": {
+		"timestamp": 1408474151742,
+		"name": "Zach",
+		"transport_address": "inet[zacharys-air/192.168.1.131:9300]",
+		"host": "zacharys-air",
+		"ip": [
+		"inet[zacharys-air/192.168.1.131:9300]",
+		"NONE"
+		],
+...
+```
+
+#### indices Section
+```json
+"indices": {
+	"docs": {
+		"count": 6163666,
+		"deleted": 0
+	},
+	"store": {
+		"size_in_bytes": 2301398179,
+		"throttle_time_in_millis": 122850
+	},
+```
+*docs*
+当前文档数量，以及标记为删除文档数量
+
+*store*
+节点消耗存储大小
+
+```json
+"indexing": {
+	"index_total": 803441,
+	"index_time_in_millis": 367654,
+	"index_current": 99,
+	"delete_total": 0,
+	"delete_time_in_millis": 0,
+	"delete_current": 0
+},
+"get": {
+	"total": 6,
+	"time_in_millis": 2,
+	"exists_total": 5,
+	"exists_time_in_millis": 2,
+	"missing_total": 1,
+	"missing_time_in_millis": 0,
+	"current": 0
+},
+"search": {
+	"open_contexts": 0,
+	"query_total": 123,
+	"query_time_in_millis": 531,
+	"query_current": 0,
+	"fetch_total": 3,
+	"fetch_time_in_millis": 55,
+	"fetch_current": 0
+},
+"merges": {
+	"current": 0,
+	"current_docs": 0,
+	"current_size_in_bytes": 0,
+	"total": 1128,
+	"total_time_in_millis": 21338523,
+	"total_docs": 7241313,
+	"total_size_in_bytes": 5724869463
+},
+```
+
+*indexing*
+索引文档数量，单向递增，文档删除后也不会减小，索引或更新操作会导致增长
+
+*get*
+单个文档GET/HEAD查询
+
+*search*
+当前查询数量(open_contexts)，查询总量，以及查询耗时
+fetch表明从磁盘读取数据耗时，如果fetch耗时高于query的话，表明磁盘读取效率低，或从磁盘中加载过大量文档，或者查询分页数据量太大
 
 
 
