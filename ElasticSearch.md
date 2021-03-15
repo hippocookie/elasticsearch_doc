@@ -1216,11 +1216,48 @@ GET _nodes/stats
 索引文档数量，单向递增，文档删除后也不会减小，索引或更新操作会导致增长
 
 *get*
-单个文档GET/HEAD查询
+get-by-ID统计，单个文档GET/HEAD查询
 
 *search*
 当前查询数量(open_contexts)，查询总量，以及查询耗时
 fetch表明从磁盘读取数据耗时，如果fetch耗时高于query的话，表明磁盘读取效率低，或从磁盘中加载过大量文档，或者查询分页数据量太大
+
+*merges*
+正在进行merges数量、参与的文档数量、累计merged segments数量、以及消耗总时间。如果集群写操作很多，merges统计就十分重要，merges会消耗大量磁盘IO和CPU资源。另外，删除更新和删除操作会导致segment片段化，也会导致大量merge。
+```json
+{
+	"filter_cache": {
+		"memory_size_in_bytes": 48,
+		"evictions": 0
+	},
+	"id_cache": {
+		"memory_size_in_bytes": 0
+	},
+	"fielddata": {
+		"memory_size_in_bytes": 0,
+		"evictions": 0
+	},
+	"segments": {
+		"count": 319,
+		"memory_in_bytes": 65812120
+	},
+	...
+}
+
+*filter_cache*
+统计filter bitsets使用的内存，以及filter缓存被老化的次数，如果老化次数过高，可以考虑增加filter缓存大小，否则缓存无法有效命中。
+但是缓存老化比较难以量化，因为缓存是以segment进行存储的，老化小的segment影响远小于老化大的segment。
+使用eviction metric作为一个粗略指导，如果看到存在大量eviction，查看你的filter确保缓存命中率。
+
+*id_cache*
+统计parent/child mappings使用的内存，当使用parent/child映射时，id_cache在内存中保留了join table用来维护这个关系，存放在heap中，统计值可以显示有多少内存被使用了，这部分占用与parent/child文档数量相关，受其他方面影响较小。
+
+*field_data*
+显示fielddata使用内存大小，一般用于聚合、排序等，这里同样有eviction统计，与filter_cache不同的是，任何的evict都是昂贵的，应该被避免。如果出现了，你应该关注内存使用情况、fielddata limit、查询条件等。
+
+*segments*
+这部分表示Lucene segments，即使存储TB级的数据，一般也介于50-150个之间，如果存在大量segments会导致merging，此处包含当前节点所有索引的统计信息。
+
 
 
 
