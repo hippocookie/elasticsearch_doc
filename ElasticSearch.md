@@ -1434,6 +1434,31 @@ GET _cluster/pending_tasks
 - 限制文档的鼎泰变化，从而限制cluster-state大小
 - 当超过集群阈值后，切换至另一个集群
 
-
-
+### cat API
+cat API提供与之前API相似的内容，可以查看如下内容
+```
+GET /_cat
+=^.^=
+/_cat/allocation
+/_cat/shards
+/_cat/shards/{index}
+/_cat/master
+/_cat/nodes
+/_cat/indices
+/_cat/indices/{index}
+/_cat/segments
+/_cat/segments/{index}
+/_cat/count
+/_cat/count/{index}
+/_cat/recovery
+/_cat/recovery/{index}
+/_cat/health
+/_cat/pending_tasks
+/_cat/aliases
+/_cat/aliases/{alias}
+/_cat/thread_pool
+/_cat/plugins
+/_cat/fielddata
+/_cat/fielddata/{fields}
+```
 
