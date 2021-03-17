@@ -1258,8 +1258,130 @@ fetch表明从磁盘读取数据耗时，如果fetch耗时高于query的话，�
 *segments*
 这部分表示Lucene segments，即使存储TB级的数据，一般也介于50-150个之间，如果存在大量segments会导致merging，此处包含当前节点所有索引的统计信息。
 
+### OS and Process Sections
+#### JVM
+在node-stats API中可以看到JVM相关信息，包含JVM堆使用信息
+```jvm
+"jvm": {
+	"timestamp": 1408556438203,
+	"uptime_in_millis": 14457,
+	"mem": {
+	"heap_used_in_bytes": 457252160,
+	"heap_used_percent": 44,
+	"heap_committed_in_bytes": 1038876672,
+	"heap_max_in_bytes": 1038876672,
+	"non_heap_used_in_bytes": 38680680,
+	"non_heap_committed_in_bytes": 38993920,
+	...
+"pools": {
+	"young": {
+		"used_in_bytes": 138467752,
+		"max_in_bytes": 279183360,
+		"peak_used_in_bytes": 279183360,
+		"peak_max_in_bytes": 279183360
+	},
+	"survivor": {
+		"used_in_bytes": 34865152,
+		"max_in_bytes": 34865152,
+		"peak_used_in_bytes": 34865152,
+		"peak_max_in_bytes": 34865152
+	},
+	"old": {
+		"used_in_bytes": 283919256,
+		"max_in_bytes": 724828160,
+		"peak_used_in_bytes": 283919256,
+		"peak_max_in_bytes": 724828160
+	}
+}
 
+"gc": {
+	"collectors": {
+		"young": {
+			"collection_count": 13,
+			"collection_time_in_millis": 923
+		},
+		"old": {
+			"collection_count": 0,
+			"collection_time_in_millis": 0
+		}
+	}
+}
+```
 
+### Threadpool Section
+一般情况并不需要调试线程池，但有时可以用来观察集群状态
+```json
+"index": {
+	"threads": 1,
+	"queue": 0,
+	"active": 0,
+	"rejected": 0,
+	"largest": 1,
+	"completed": 1
+}
+```
+
+#### Bulk Rejections
+最常见的是bulk indexing请求，每个节点都有吞吐量上线，如果超过这个限制，批量请求就会被拒绝。当遇到bulk rejection时，可做如下处理:
+1. 暂停导入线程3-5秒
+2. 解析拒绝响应，查看具体失败的信息
+3. 发送新的bulk请求添加失败的文档
+4. 如果再次遇到bulk rejection，重复步骤1
+
+拒绝请求并非是错误，仅是提醒需要稍后重试。
+
+以下线程池需要进行观察:
+*indexing*
+用于处理索引文档请求
+
+*bulk*
+用于处理批量请求
+
+*get*
+处理Get-by-ID请求
+
+*search*
+所有查询请求
+
+*merging*
+用于处理Lucene merge
+
+### FS and Network Sections
+node-stats API还包含磁盘信息，包括剩余空间、数据路径、以及磁盘IO。
+
+同时也包含网络信息:
+```json
+"transport": {
+	"server_open": 13,
+	"rx_count": 11696,
+	"rx_size_in_bytes": 1525774,
+	"tx_count": 10282,
+	"tx_size_in_bytes": 1440101928
+},
+"http": {
+	"current_open": 4,
+	"total_opened": 23
+},
+```
+
+*transport*
+包含节点之间通信信息(通常端口为9300)，ES节点之间通常有大量链接
+
+*http*
+如果看到total_opened数量持续增长，可以确定是HTTP clients没有使用keep-alive链接，使用keep-alive可以提高性能。
+
+### Circuit Breaker
+这里可以查看circuit-breaker最大数量，以及tripped次数。如果数量很大且持续上涨，表明你的查询条件需要进行优化或者需要更大的内存空间。
+```json
+"fielddata_breaker": {
+	"maximum_size_in_bytes": 623326003,
+	"maximum_size": "594.4mb",
+	"estimated_size_in_bytes": 0,
+	"estimated_size": "0b",
+	"overhead": 1.03,
+	"tripped": 0
+}
+```
 
 
 
