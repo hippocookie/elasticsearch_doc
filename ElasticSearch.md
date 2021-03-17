@@ -1383,6 +1383,57 @@ node-stats API还包含磁盘信息，包括剩余空间、数据路径、以及
 }
 ```
 
+### Cluster Stats
+Cluster-stats API提供了监控集群中所有节点状态的视图
+> GET _cluster/stats
+
+### Index Stats
+通过index-stats API可进行查看
+> my_index/_stats
+> my_index,another_index/_stats
+> _all/_stats
+
+返回的内容与node-stats相似，可用于识别集群中热点索引，或用于鉴别个别索引查询效率，在实际中node-stats更为实用。
+
+### Pending Tasks
+有些任务仅master节点可以执行，例如创建索引、移动集群内分片。集群中只有一个master节点，可以处理集群级别元模型变更。在少数场景下，模型变更速度超过master节点处理速度，导致任务积压。
+
+可以通过pending-task API进行查看
+```json
+GET _cluster/pending_tasks
+{
+	"tasks": [
+		{
+			"insert_order": 101,
+			"priority": "URGENT",
+			"source": "create-index [foo_9], cause [api]",
+			"time_in_queue_millis": 86,
+			"time_in_queue": "86ms"
+		},
+		{
+			"insert_order": 46,
+			"priority": "HIGH",
+			"source": "shard-started ([foo_2][1], node[tMTocMvQQgGCkj7QDHl3OA], [P],s[INITIALIZING]), reason [after recovery from gateway]",
+			"time_in_queue_millis": 842,
+			"time_in_queue": "842ms"
+		},
+		{
+			"insert_order": 45,
+			"priority": "HIGH",
+			"source": "shard-started ([foo_2][0], node[tMTocMvQQgGCkj7QDHl3OA], [P],s[INITIALIZING]), reason [after recovery from gateway]",
+			"time_in_queue_millis": 858,
+			"time_in_queue": "858ms"
+		}
+	]
+}
+```
+
+#### 合适需顾虑Pending Tasks
+当集群cluster-stat很大且变更很频繁时，可能导致Pending Tasks，此时可以考虑如下方法:
+- 提高master节点性能，水平扩展只是延迟了这一现象
+- 限制文档的鼎泰变化，从而限制cluster-state大小
+- 当超过集群阈值后，切换至另一个集群
+
 
 
 
