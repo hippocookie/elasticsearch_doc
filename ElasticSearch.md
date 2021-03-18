@@ -1023,6 +1023,125 @@ GET /_search
 }
 ```
 
+### 字符串和多字段排序
+进行分词查询的字段无法进行排序，要使用string进行排序只能对整个字符串字段排序(keyword/not_analyzed)。可以通过传递*fields*配置，对同一个字段使用两种不同的索引。
+```json
+"tweet": {
+	"type": "string",
+	"analyzer": "english",
+	"fields": {
+		"raw": {
+			"type": "string",
+			"index": "not_analyzed"
+		}
+	}
+}
+```
+- tweet字段使用分词器进行分词
+- tweet.raw字段不进行分词
+
+查询时使用tweet.raw进行排序
+```json
+GET /_search
+{
+	"query": {
+		"match": {
+			"tweet": "elasticsearch"
+		}
+	},
+	"sort": "tweet.raw"
+}
+```
+
+### 什么是相关性
+搜索结果中使用_score字段表示每个文档的相关性，ES中用于计算相关性的算法有:
+*Term frequency*
+查询的短语在文档中出现的次数越多，相关性越高
+
+*Inverse document frequency*
+一个词出现在文档的数量越多，这个词的相关性权重就越小
+
+*Field-length norm*
+一个词出现在较短的字段里，权重大于出现在长字段里
+
+不仅是分词字段，像bool字段一样可以影响_score相关性得分
+
+#### 理解相关性
+可以通过explain查看搜索结果
+```json
+GET /_search?explain
+GET /_search?explain&format=yaml
+{
+"query" : { "match" : { "tweet" : "honeymoon" }}
+}
+
+
+"_explanation": {
+	"description": "weight(tweet:honeymoon in 0) [PerFieldSimilarity], result of:",
+	"value": 0.076713204,
+	"details": [
+		{
+			"description": "fieldWeight in 0, product of:",
+			"value": 0.076713204,
+			"details": [
+				{
+					"description": "tf(freq=1.0), with freq of:",
+					"value": 1,
+					"details": [
+					{
+						"description": "termFreq=1.0",
+						"value": 1
+					}
+					]
+				},
+				{
+				"description": "idf(docFreq=1, maxDocs=1)",
+				"value": 0.30685282
+				},
+				{
+				"description": "fieldNorm(doc=0)",
+				"value": 0.25,
+				}
+			]
+		}
+	]
+}
+```
+
+#### 理解文档如何匹配
+使用/index/type/id/_explain API可以查看文档没有匹配的原因
+```json
+GET /us/tweet/12/_explain
+{
+	"query" : {
+		"filtered" : {
+			"filter" : { "term" : { "user_id" : 2 }},
+			"query" : { "match" : { "tweet" : "honeymoon" }}
+		}
+	}
+}
+```
+
+### fielddata
+Inverted index是一个理想的搜索数据结构，但不善于排序，当需要排序的时候，ES需要加载所有文档对应字段至内存中进行排序，这部分数据成为fielddata。
+
+排序时，ES不仅加载匹配查询条件的文档字段，会加载索引下全部文档的字段，不论是文档属于什么类型。这个过程会消耗很多内存，特别是具有很多值string字段。
+
+Fielddata在ES中的使用场景:
+- 对一个字段进行排序
+- 对一个字段进行聚合
+- 特定的filter，e.g. geolocation filters
+- Scripts引用的字段
+
+
+
+
+
+
+
+
+
+
 ## 监控
 ### Cluster Health
 ```json
