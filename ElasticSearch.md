@@ -1462,3 +1462,14 @@ GET /_cat
 /_cat/fielddata/{fields}
 ```
 
+查询结果中没有包含行首，可以追加?v参数进行打印
+> GET /_cat/health?v
+> epoch time cluster status node.total node.data shards pri relo init
+> 1408[..] 12[..] el[..] 1 1 114 114 0 0 114 unassign
+
+cat API可以向Linux工具一样，使用*sort grep awk*等操作
+> curl 'localhost:9200/_cat/indices?bytes=b' | sort -rnk8
+> curl 'localhost:9200/_cat/indices?bytes=b' | sort -rnk8 | grep -v marvel
+
+
+
