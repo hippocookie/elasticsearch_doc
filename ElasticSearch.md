@@ -1134,6 +1134,96 @@ Fielddata在ES中的使用场景:
 - Scripts引用的字段
 
 
+## 分布式搜索
+一个查询请求会查询每个shard查看是否有匹配的文档，这只是第一步，查询后需要将多个shard的结果进行聚合，这种两阶段执行称作*query-then-fetch*
+
+### Query阶段
+查询阶段会广播查询请求至一个shard(primary or replica)，每个shard在本地执行搜索请求，然后使用匹配的文档构建一个priority queue。
+
+*priority queue*是一个有序的top-n匹配文档列表，其大小取决于分页条件from/size
+```json
+GET /_search
+{
+	"from": 90,
+	"size": 10
+}
+```
+
+当一个节点接受到请求后，这个节点为*coordinating node*，负责向其他节点发送查询请求，并聚合各节点查询结果。
+
+各分片将搜索的结果在本地*priority queue*进行排序，返回from + size的数据，仅有ID和_score字段。
+
+*coordinating node*随后会将各分片结果进行汇聚得出全局有序结果。
+
+### Fetch阶段
+*coordinating node*将需要获取的文档对应shard发送GET请求，各shard加载文档对应字段(_source)并返回结果，最后由*coordinatin node*返回。
+
+#### 深度翻页
+from + size的翻页方式具有局限性，每个shard都需创建一个大小为from + size的priority queue，*coordinating node*需要排序number_of_shards * (from + size)数量的文档以便找到对应的结果。
+
+如需要查询大量文档，可以使用scan查询类型。
+
+### 查询选项
+#### preference
+可用于控制查询请求访问的shards，选项有: _primary, _primary_first, _local, _only_node:xyz, _prefer_node:xyz, _shards:2,3
+
+最常用的值是任意字符串，以避免出现bouncing results问题:
+在搜索时是使用一个字段进行排序，例如timestamp，当两个文档的timestamp具有相同的值时，因为搜索请求时轮询方式发送值各可用shard的，这两个节点在请求不同shard的时候可能以不同的顺序返回。可以设置preference值为任意一字符串例如用户的session ID。
+
+#### timeout
+通过设置timeout可以告诉coordinating节点应该等待多久进行返回，当时间到时，返回当前已获取到的结果，避免应为个别节点响应延迟而导致整个查询变慢。
+
+查询结果中会显示有多少个节点成功返回了请求
+```json
+...
+"timed_out": true,
+"_shards": {
+	"total": 5,
+	"successful": 4,
+	"failed": 1
+},
+...
+```
+
+#### routing
+可以在创建文档索引时，指定routing字段，来让相同文档分配到同一个shard中，在查询中可以使用routing来限制查询数据范围在对应的shards中
+> GET /_search?routing=user_1,user2
+
+#### search_type
+> GET /_search?search_type=count
+- count: 只有query阶段
+- query_and_fetch: 默认配置，一般不需指明，当有条件限制请求到一个shard的时候(routing)，会被优化为一步查询
+- dfs_query_then_fetch/dfs_query_and_fetch: dfs类型的查询会有个*prequery*阶段，加载会将所有相关节点的词频，用于计算一个全局词频
+- scan: 与scroll API配合，用于读取大量的文档，会禁用排序选项
+
+#### scan and scroll
+scan scroll的方式用于获取大量文档，并且没有深度翻页效率问题。
+*scroll*
+类似于关系数据库的cursor，可以初始化一个查询并持续获取一批文档，直至所有匹配的文档已被获取完。当开始scroll的时候，ES会创建一个快照，确保在查询的过程中数据不会变化。
+
+*scan*
+深度翻页最大的开销是需要一个全局有序的结果集，如果我们不使用排序的话，可以很轻松的获取到对应文档，scan操作不使用排序，仅从各shard中获取文档。
+
+可传递scan参数开启，并传递scroll参数配置scroll保持时间
+```json
+GET /old_index/_search?search_type=scan&scroll=1m
+{
+	"query": { "match_all": {}},
+	"size": 1000
+}
+```
+
+结果中会返回Base-64编码的_scroll_id，用于进行翻页操作，当再次调用传递scroll=1m的时候，对应过期时间延长1m
+```
+GET /_search/scroll?scroll=1m
+c2Nhbjs1OzExODpRNV9aY1VyUVM4U0NMd2pjWlJ3YWlBOzExOTpRNV9aY1VyUVM4U0
+NMd2pjWlJ3YWlBOzExNjpRNV9aY1VyUVM4U0NMd2pjWlJ3YWlBOzExNzpRNV9aY1Vy
+UVM4U0NMd2pjWlJ3YWlBOzEyMDpRNV9aY1VyUVM4U0NMd2pjWlJ3YWlBOzE7dG90YW
+xfaGl0czoxOw==
+```
+
+
+
 
 
 
