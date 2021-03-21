@@ -1213,7 +1213,9 @@ GET /old_index/_search?search_type=scan&scroll=1m
 }
 ```
 
-结果中会返回Base-64编码的_scroll_id，用于进行翻页操作，当再次调用传递scroll=1m的时候，对应过期时间延长1m
+结果中会返回Base-64编码的_scroll_id，用于进行翻页操作，当再次调用传递scroll=1m的时候，对应过期时间延长1m，每次调用需将上次返回的_scroll_id传入。
+
+**每次查询可能得到的文档数=size * number_of_primary_shards**
 ```
 GET /_search/scroll?scroll=1m
 c2Nhbjs1OzExODpRNV9aY1VyUVM4U0NMd2pjWlJ3YWlBOzExOTpRNV9aY1VyUVM4U0
@@ -1222,9 +1224,39 @@ UVM4U0NMd2pjWlJ3YWlBOzEyMDpRNV9aY1VyUVM4U0NMd2pjWlJ3YWlBOzE7dG90YW
 xfaGl0czoxOw==
 ```
 
+## 索引管理
+### 创建索引
+当传入索引文档时，ES可以使用dynamic mapping自动创建索引字段配置，同时我们也可以自己传入索引配置进行创建。
+```json
+PUT /my_index
+{
+	"settings": { ... any settings ... },
+	"mappings": {
+		"type_one": { ... any mappings ... },
+		"type_two": { ... any mappings ... },
+		...
+	}
+}
+```
 
+可以在config/elasticsearch.yml文件中加入如下配置项，关闭dynamic mapping
+> action.auto_create_index: false
 
+### 删除索引
+可通过如下方式删除索引:
+> DELETE /my_index
+> DELETE /index_one,index_two
+> DELETE /index_*
+> DELETE /_all
 
+### 索引配置
+*number_of_shards*
+一个索引所包含primary shards的数量，默认值为5，索引创建后不可修改。
+
+*number_of_replicas*
+每个primary shard对应replica shard的数量，默认值为1，索引创建后可以修改。
+
+### 配置分词器
 
 
 
