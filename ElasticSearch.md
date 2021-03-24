@@ -1257,8 +1257,30 @@ PUT /my_index
 每个primary shard对应replica shard的数量，默认值为1，索引创建后可以修改。
 
 ### 配置分词器
+#### Character filters
+一个分词器可以有0到多个字符过滤器，在进行分词前，对字段进行处理，例如，使用html_strip去除字段中HTML标签
 
+#### Tokenizers
+一个分词器只有一个tokenizer，将字符串拆分为多个独立的词组
 
+#### Token filters
+对分词后的词组进行转换、添加或删除，例如lowercase、stop token filters
+
+### 创建自定义分词器
+可以通过在*analysis*属性中，配置character filters、tokenizers和token filters
+```json
+PUT /my_index
+{
+	"settings": {
+		"analysis": {
+			"char_filter": { ... custom character filters ... },
+			"tokenizer": { ... custom tokenizers ... },
+			"filter": { ... custom token filters ... },
+			"analyzer": { ... custom analyzers ... }
+		}
+	}
+}
+```
 
 
 
