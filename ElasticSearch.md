@@ -1339,6 +1339,20 @@ Lucene中也没有Mappings的概念，Mappings是ES中用来将Lucene中的简�
 ### Root对象
 Mapping中包含的顶层属性为root对象。
 
+#### Properties
+*type*
+字段数据类型
+*index*
+字段是否需要分词analyzed/not_analyzed
+*analyzer*
+需要分词场景下，使用的分词器
+
+#### Metadata: _source Field
+默认情况下，ES将文档的JSON存储在_source字段中，压缩完成后存储至磁盘中。好处如下:
+- 整个文档可以从查询结果中直接访问，不用从其他存储中再次fetch文档
+- 没有_source字段，部分更新操作将无法使用
+
+
 
 
 
