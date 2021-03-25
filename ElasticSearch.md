@@ -1281,6 +1281,64 @@ PUT /my_index
 	}
 }
 ```
+如下，我们配置一个自定义的分词器
+- 使用html_strip去除HTML标签
+- 使用自定义mapping character filter替换&为and
+- 使用standard tokenizer进行分词
+- 使用lowercase token filter转为小写
+- 使用stop token filter去除停止词
+用以上定义的filter配置自定义analyzer
+```json
+PUT /my_index
+{
+	"settings": {
+		"analysis": {
+			"char_filter": {
+			"&_to_and": {
+			"type": "mapping",
+			"mappings": [ "&=> and "]
+		}},
+		"filter": {
+			"my_stopwords": {
+				"type": "stop",
+				"stopwords": [ "the", "a" ]
+		}},
+		"analyzer": {
+			"my_analyzer": {
+				"type": "custom",
+				"char_filter": [ "html_strip", "&_to_and" ],
+				"tokenizer": "standard",
+				"filter": [ "lowercase", "my_stopwords" ]
+				}
+			}
+		}
+	}
+}
+
+PUT /my_index/_mapping/my_type
+{
+	"properties": {
+		"title": {
+			"type": "string",
+			"analyzer": "my_analyzer"
+		}
+	}
+}
+```
+
+### Types and Mappings
+*Type*表示一类相似的文档，ES新版本中取消配置type，默认使用_doc
+
+Lucene中文档时一组field-value组合，不论是string、number或date类型，都会被转为*opaque bytes*。
+
+#### Type是如何实现的
+Lucene中没有type这个概念，对应的值是存储在文档_type字段中的，当搜索特定类型的文档时，ES用_type字段进行过滤获取到匹配的文档。
+
+Lucene中也没有Mappings的概念，Mappings是ES中用来将Lucene中的简单flat document映射到复杂JSON结构体的。
+
+### Root对象
+Mapping中包含的顶层属性为root对象。
+
 
 
 
