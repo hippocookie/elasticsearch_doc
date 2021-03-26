@@ -1455,6 +1455,46 @@ PUT /my_index
 }
 ```
 
+### Dynamic Mapping
+*true*
+默认配置，对没有配置Mapping的字段自动生成类型
+
+*false*
+忽略未配置Mapping字段，配置为false并不会影响_source字段，_source仍然会包含整个完整的文档，但对应字段不会生成Mapping，也不可搜索
+
+*strict*
+遇到未配置Mapping字段抛出异常
+
+可在创建索引Mapping时进行配置
+```json
+PUT /my_index
+{
+	"mappings": {
+		"my_type": {
+			"dynamic": "strict",
+				"properties": {
+				"title": { "type": "string"},
+				"stash": {
+					"type": "object",
+					"dynamic": true
+				}
+			}
+		}
+	}
+}
+```
+
+### 自定义Dynamic Mapping 147
+
+
+
+
+
+
+
+## 结构化搜索
+
+
 
 
 
