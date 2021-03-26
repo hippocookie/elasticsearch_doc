@@ -1351,6 +1351,115 @@ Mapping中包含的顶层属性为root对象。
 默认情况下，ES将文档的JSON存储在_source字段中，压缩完成后存储至磁盘中。好处如下:
 - 整个文档可以从查询结果中直接访问，不用从其他存储中再次fetch文档
 - 没有_source字段，部分更新操作将无法使用
+- 当修改了mapping需要reindex数据时，不需要从其他存储中获取，可以直接从ES中获取到所有文档
+- 更容易debug查询，可以清楚的看到每个文档中包含的字段
+
+可以通过如下方式关闭_source字段
+```json
+PUT /my_index
+{
+	"mappings": {
+		"my_type": {
+			"_source": {
+				"enabled": false
+			}
+		}
+	}
+}
+```
+可以在查询时声明_source字段，指定对应查询的字段
+```json
+GET /_search
+{
+	"query": { "match_all": {}},
+	"_source": [ "title", "created" ]
+}
+```
+
+**Store Fields**
+Lucene中可以使用stored field来选择需要返回的字段，在ES中即为_source，整个文档在ES中都存储为_source字段，查询过程中最好使用_source明确指明需要返回的数据字段。
+
+### Metadata: _all Field
+将其他字段合成一个长字符串，如查询时未声明搜索的字段，默认将使用_all字段进行查询。_all字段对应的是字符串，使用默认分词器进行处理。
+```json
+GET /_search
+{
+	"match": {
+		"_all": "john smith marketing"
+	}
+}
+```
+可以通过如下设置来禁止_all字段，或通过设置include_in_all来禁用
+```json
+PUT /my_index/_mapping/my_type
+{
+	"my_type": {
+		"_all": { "enabled": false }
+	}
+}
+
+PUT /my_index/my_type/_mapping
+{
+	"my_type": {
+		"include_in_all": false,
+		"properties": {
+			"title": {
+				"type": "string",
+				"include_in_all": true
+			},
+		...
+		}
+	}
+}
+```
+也可以配置_all字段使用的分词器
+```json
+PUT /my_index/my_type/_mapping
+{
+	"my_type": {
+		"_all": { "analyzer": "whitespace" }
+	}
+}
+```
+
+### Metadata: Document Identity
+*_id*
+文档string ID，不索引且不存储
+
+*_type*
+文档类型，索引字段，不存储
+
+*_index*
+文档索引，不索引且不存储
+
+*_uid*
+_type和_id组合(type#id)，存储且索引的字段，ES使用_uid来获取_id
+
+可通过配置path字段来声明_id从哪个字段取值，此操作在使用bulk处理时存在性能损失，节点不能对bulk处理进行优化，原本只需解析文档metadata数据可知道对应路由节点，配置后需解析完整文档，才能获取到_id。
+```json
+PUT /my_index
+{
+	"mappings": {
+		"my_type": {
+			"_id": {
+				"path": "doc_id"
+			},
+			"properties": {
+				"doc_id": {
+					"type": "string",
+					"index": "not_analyzed"
+				}
+			}
+		}
+	}
+}
+```
+
+
+
+
+
+
 
 
 
