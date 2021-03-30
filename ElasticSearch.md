@@ -1493,6 +1493,153 @@ PUT /my_index
 
 
 ## 结构化搜索
+### 精确查询
+#### term Filter with Numbers
+*filtered query*可以同时接收query和filter，filter并不参与结果中_score分数计算
+```json
+GET /my_store/products/_search
+{
+	"query" : {
+		"filtered" : {
+			"query" : {
+				"match_all" : {}
+			},
+			"filter" : {
+				"term" : {
+				"price" : 20
+				}
+			}
+		}
+	}
+}
+```
+
+#### term Filter with Text
+类似于执行SQL
+```sql
+SELECT product
+FROM products
+WHERE productID = "XHDK-A-1293-#fJ3"
+```
+
+*term*查询字符串与数字方式相同
+```json
+GET /my_store/products/_search
+{
+	"query" : {
+		"filtered" : {
+			"filter" : {
+				"term" : {
+					"productID" : "XHDK-A-1293-#fJ3"
+				}
+			}
+		}
+	}
+}
+```
+
+但查询返回结果为空，因为对productID字段使用了分词器，使其值在索引中被分解为多个token，当我们尝试匹配完整的值时，在索引中没有对应的结果，可查看分析如下:
+```json
+GET /my_store/_analyze?field=productID
+XHDK-A-1293-#fJ3
+{
+	"tokens" : [ 
+		{
+			"token" : "xhdk",
+			"start_offset" : 0,
+			"end_offset" : 4,
+			"type" : "<ALPHANUM>",
+			"position" : 1
+		}, {
+			"token" : "a",
+			"start_offset" : 5,
+			"end_offset" : 6,
+			"type" : "<ALPHANUM>",
+			"position" : 2
+		}, {
+			"token" : "1293",
+			"start_offset" : 7,
+			"end_offset" : 11,
+			"type" : "<NUM>",
+			"position" : 3
+		}, {
+			"token" : "fj3",
+			"start_offset" : 13,
+			"end_offset" : 16,
+			"type" : "<ALPHANUM>",
+			"position" : 4
+		}
+	]
+}
+```
+- 索引值被拆分为4个token
+- 所有字母被转换为小写
+- 拆分后特殊字符丢失(-#)
+
+要使用精确查询的话，我们需告诉ES该字段不需进行分词
+```json
+DELETE /my_store
+
+PUT /my_store
+{
+	"mappings" : {
+		"products" : {
+			"properties" : {
+				"productID" : {
+					"type" : "string",
+					"index" : "not_analyzed"
+				}
+			}
+		}
+	}
+}
+```
+
+#### Internal Filter Operation
+ES内部执行filter时有一下操作:
+*Find matching docs*
+term filter在倒排索引中查询包含该字段值得文档
+
+*Build a bitset*
+Filter创建一个bitset(一个包含0/1的数组)，匹配的文档标识1bit
+
+*Cache the bitset*
+最后，这个bitset会缓存在内存中，在后续的查询中可以直接跳过以上两个步骤来查询，提升filter查询的性能。
+
+当执行*filtered query*时，filter优先于query执行，query会在bitset查询结果集中执行，缩小了query执行的范围。
+
+### Combining Filter
+类似于执行SQL
+```sql
+SELECT product
+FROM products
+WHERE (price = 20 OR productID = "XHDK-A-1293-#fJ3")
+AND (price != 30)
+```
+#### Bool Filter
+*bool filter*包含三种类型:
+```json
+{
+	"bool" : {
+		"must" : [],
+		"should" : [],
+		"must_not" : []
+	}
+}
+```
+*must*
+所有条件都需要满足，与AND相同
+
+*must_not*
+所有条件都需要不满足，与NOT相同
+
+*should*
+至少一个条件需要满足，与OR相同
+
+
+
+
+
 
 
 
@@ -1617,8 +1764,10 @@ GET _cluster/health?level=indices
 
 #### 等待状态变化
 cluster-health API可以进行调试或执行脚本
-> 等待集群状态为greem
+> 等待集群状态为green
+>
 > GET _cluster/health?wait_for_status=green
+
 例如创建索引后，立即添加文档，此时可调用以上接口阻塞等待，待索引创建完毕后继续执行
 
 #### 监控单个节点
@@ -1727,6 +1876,7 @@ fetch表明从磁盘读取数据耗时，如果fetch耗时高于query的话，�
 	},
 	...
 }
+```
 
 *filter_cache*
 统计filter bitsets使用的内存，以及filter缓存被老化的次数，如果老化次数过高，可以考虑增加filter缓存大小，否则缓存无法有效命中。
