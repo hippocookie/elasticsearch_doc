@@ -1636,10 +1636,62 @@ AND (price != 30)
 *should*
 至少一个条件需要满足，与OR相同
 
+bool查询条件可以多个同时使用，我们使用filtered将过滤条件包起来
+```json
+GET /my_store/products/_search
+{
+	"query" : {
+		"filtered" : {
+			"filter" : {
+				"bool" : {
+					"should" : [
+						{ "term" : {"price" : 20}},
+						{ "term" : {"productID" : "XHDK-A-1293-#fJ3"}}
+					],
+					"must_not" : {
+						"term" : {"price" : 30}
+					}
+				}
+			}
+		}
+	}
+}
+```
 
 
+#### Nesting Boolean Filter
+我们可以在一个bool filter内部嵌套另一个bool filter，例如样例SQL如下
+```sql
+SELECT document
+FROM products
+WHERE productID = "KDKE-B-9947-#kL5"
+OR ( productID = "JODL-X-1937-#pV7" AND price = 30 )
+```
+使用ES查询条件如下，在should中嵌套的多个条件，至少有一个需要满足，must中的条件都需满足。
+```json
+GET /my_store/products/_search
+{
+	"query" : {
+		"filtered" : {
+			"filter" : {
+				"bool" : {
+					"should" : [
+						{ "term" : {"productID" : "KDKE-B-9947-#kL5"}},
+						{ "bool" : {
+							"must" : [
+								{ "term" : {"productID" : "JODL-X-1937-#pV7"}},
+								{ "term" : {"price" : 30}}
+							]
+						}}
+					]
+				}
+			}
+		}
+	}
+}
+```
 
-
+### 精确查找多个值
 
 
 
