@@ -1692,6 +1692,100 @@ GET /my_store/products/_search
 ```
 
 ### 精确查找多个值
+*term*用于查找单个精确值，*terms*可以用来查找多个精确值，查找方式为contains，不是equals，当查找的字段有多个值时，有一个满足即可匹配。
+```json
+GET /my_index/my_type/_search
+{
+	"query": {
+		"filtered" : {
+			"filter" : {
+				"bool" : {
+					"must" : [
+						{ "term" : { "tags" : "search" } },
+						{ "term" : { "tag_count" : 1 } }
+					]
+				}
+			}
+		}
+	}
+}
+```
+
+### Ranges
+样例SQL如下
+```sql
+SELECT document
+FROM products
+WHERE price BETWEEN 20 AND 40
+```
+
+ES使用操作符如下:
+- gt: > greater than
+- lt: < less than
+- gte: >= greater than or equal to
+- lte: <= less than or equal to
+
+```json
+GET /my_store/products/_search
+{
+	"query" : {
+		"filtered" : {
+			"filter" : {
+				"range" : {
+					"price" : {
+						"gte" : 20,
+						"lt" : 40
+					}
+				}
+			}
+		}
+	}
+}
+```
+
+#### Ranges on Dates
+可以对date类型字段进行range操作
+```json
+{
+	"range" : {
+		"timestamp" : {
+			"gt" : "2014-01-01 00:00:00",
+			"lt" : "2014-01-07 00:00:00"
+		}
+	}
+}
+```
+range支持date math操作
+```json
+{
+	"range" : {
+		"timestamp" : {
+			"gt" : "now-1h"
+		}
+	}
+}
+```
+
+#### Ranges on Strings
+range也可以对string类型进行操作，使用的是字典排序。
+
+> terms在倒排索引中使用的也是字典排序
+
+```json
+{
+	"range" : {
+		"title" : {
+			"gte" : "a",
+			"lt" : "b"
+		}
+	}
+}
+```
+
+> ES对数字和date索引方式可以有效的使用range操作，但string类型不行，当对string类型使用range操作时，类似于对range范围内每个组合使用term过滤条件，效率低于数字和date类型
+
+
+
 
 
 
