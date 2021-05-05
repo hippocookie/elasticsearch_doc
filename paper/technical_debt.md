@@ -51,6 +51,17 @@
 |运营指标|通过产品运行质量指标反馈技术债务|
 |解决方案对比|计算现有实现与最优时间之间的差距|
 
+SQALE（基于生命周期期望的软件质量评估）是一种支持软件应用程序源代码评估的方法。此方法在开放源代码许可证下发布，并且免版税。它是一种通用方法，独立于语言和源代码分析工具。
+首先要做的是识别规范的代码，称作质量模型，任何不合规行为都会产生债务，而相反如果不违反任一项要求，则没有债务。具体内容和度量需要与开发团队之间达成共识[6]。
+例如:
+|特性|要求|修复方式|修复代价|
+|---|---|---|---|
+|维护性|存在注释代码|删除|2min每次出现|
+|可变性|包之间无循环引用|重构|1h每次出现|
+|可读性|代码需复写equals和hashcode方法|编写方法和UT|1h每次出现|
+
+通过以上方法，我们将代码的技术债务转换为修复的代价，将所有代码中违反规范的修复代价相加起来，成为SQALE质量索引（SQI)。
+
 ## 技术债务优先次序
 |类别|描述|
 |---|---|
@@ -108,3 +119,6 @@ http://www.construx.com/uploadedFiles/Construx/Construx_Content/Resources/Docume
 [5] B. Curtis, J. Sappidi, A. Szynkarski, Estimating the size, cost, and types of Technical Debt, in:
 Proceedings of the 3rd International Workshop on Managing Technical Debt (MTD'12), IEEE, Zurich,
 Switzerland, 2012, pp. 49-53.
+[6]J.-L. Letouzey, The SQALE method for evaluating Technical Debt, in: Proceedings of the 3rd
+International Workshop on Managing Technical Debt (MTD'12), IEEE, Zurich, Switzerland, 2012, pp.
+31-36.
