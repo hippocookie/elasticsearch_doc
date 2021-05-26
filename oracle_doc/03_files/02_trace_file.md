@@ -18,33 +18,35 @@ Provide tunning information
 #### location
 ```sql
 > show parameter dump_dest;
-NAME                 TYPE   VALUE
--------------------- ------ --------------------------------------
-background_dump_dest string /u01/app/oracle/diag/rdbms/xe/XE/trace
-core_dump_dest       string /u01/app/oracle/diag/rdbms/xe/XE/cdump
-user_dump_dest       string /u01/app/oracle/diag/rdbms/xe/XE/trace
+```
+|NAME|TYPE|VALUE|
+|---|---|---|
+|background_dump_dest|string|/u01/app/oracle/diag/rdbms/xe/XE/trace|
+|core_dump_dest|string|/u01/app/oracle/diag/rdbms/xe/XE/cdump|
+|user_dump_dest|string|/u01/app/oracle/diag/rdbms/xe/XE/trace|
 
-
+```sql
 > select name, value from v$parameter where name like '%dump_dest%';
 ```
 
 ### Automatic Diagnostic Repository
 ```sql
 > select * from v$diag_info;
-NAME                  VALUE
---------------------- --------------------------------------------------------
-Diag Enabled  TRUE
-ADR Base  /u01/app/oracle
-ADR Home  /u01/app/oracle/diag/rdbms/xe/XE
-Diag Trace  /u01/app/oracle/diag/rdbms/xe/XE/trace
-Diag Alert  /u01/app/oracle/diag/rdbms/xe/XE/alert
-Diag Incident /u01/app/oracle/diag/rdbms/xe/XE/incident
-Diag Cdump  /u01/app/oracle/diag/rdbms/xe/XE/cdump
-Health Monitor  /u01/app/oracle/diag/rdbms/xe/XE/hm
-Default Trace File  /u01/app/oracle/diag/rdbms/xe/XE/trace/XE_ora_346.trc
-Active Problem Count	0
-Active Incident Count	0
 ```
+|NAME|VALUE|
+|---|---|
+|Diag Enabled|TRUE|
+|ADR Base|/u01/app/oracle|
+|ADR Home|/u01/app/oracle/diag/rdbms/xe/XE|
+|Diag Trace|/u01/app/oracle/diag/rdbms/xe/XE/trace|
+|Diag Alert|/u01/app/oracle/diag/rdbms/xe/XE/alert|
+|Diag Incident|/u01/app/oracle/diag/rdbms/xe/XE/incident|
+|Diag Cdump|/u01/app/oracle/diag/rdbms/xe/XE/cdump|
+|Health Monitor|/u01/app/oracle/diag/rdbms/xe/XE/hm|
+|Default Trace File|/u01/app/oracle/diag/rdbms/xe/XE/trace/XE_ora_346.trc|
+|Active Problem Count|0|
+|Active Incident Count|0|
+
 - Diag Trace: trace file location
 - Default Trace File: current session trace file
 
